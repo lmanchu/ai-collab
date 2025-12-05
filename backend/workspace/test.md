@@ -1,1 +1,1 @@
-Hello from Iris, testing the AI collaboration system
+Updated content from Iris - testing file updates
