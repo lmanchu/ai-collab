@@ -11,6 +11,7 @@ const fs = require('fs');
 let mainWindow;
 let backendProcess;
 let currentWorkspacePath = null;
+let store = null; // Will be initialized asynchronously
 
 // Backend server port
 const BACKEND_PORT = 3000;
@@ -19,9 +20,12 @@ const FRONTEND_PORT = 5173;
 // Determine if running in development mode
 const isDev = process.env.NODE_ENV === 'development';
 
-// Store path for persisting workspace
-const Store = require('electron-store');
-const store = new Store();
+// Initialize electron-store (ES Module)
+async function initStore() {
+  const { default: Store } = await import('electron-store');
+  store = new Store();
+  return store;
+}
 
 /**
  * Open folder dialog and set workspace
@@ -285,15 +289,21 @@ ipcMain.handle('workspace:open', async () => {
 /**
  * App lifecycle
  */
-app.whenReady().then(() => {
-  // Start backend server
-  startBackend();
+app.whenReady().then(async () => {
+  // Initialize store first
+  await initStore();
 
-  // Wait a bit for backend to start
+  // Only start backend in production (in dev, npm run dev:backend handles it)
+  if (!isDev) {
+    startBackend();
+  }
+
+  // Wait a bit for backend to start (in dev, backend is already running)
+  const delay = isDev ? 500 : 2000;
   setTimeout(() => {
     createWindow();
     createMenu();
-  }, 2000);
+  }, delay);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
