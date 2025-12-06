@@ -105,26 +105,37 @@ tandem write <file> <content>
 
 ## 🎨 Features
 
-### MVP (Week 1)
-- ✅ Web UI (File Explorer + Markdown Editor + Timeline)
-- ✅ Electron Desktop App
-- ✅ File Creation (with [+] button)
-- ✅ CLI Tool (read/write/list)
-- ✅ Git version control (auto commit)
-- ✅ AI tagging (distinguish human vs AI commits)
-- ✅ Diff viewer
+### v1.1.0 (Current) - ✅ Shipped
+- ✅ **Desktop App** - Native Electron app for macOS/Windows/Linux
+- ✅ **Open Folder Workspace** - Obsidian-like folder selection (Cmd+O)
+- ✅ **Web UI** - File Explorer + Markdown Editor + Timeline
+- ✅ **File Creation** - [+] button with dialog
+- ✅ **CLI Tool** - `tandem read/write/list` commands
+- ✅ **Git Version Control** - Auto-commit on save
+- ✅ **AI Attribution** - Distinguish 👤 Human vs 🤖 AI commits
+- ✅ **Diff Viewer** - Compare versions
+- ✅ **Workspace Persistence** - Remember last opened folder
 
-### Phase 2
+### v2.0.0 (Next) - 🎯 Planned
+**Real-Time Conflict-Free Collaboration** (Hybrid CRDT + Git Architecture)
+- ⏳ **Yjs CRDT Integration** - Conflict-free collaborative editing
+- ⏳ **WebSocket Sync** - Real-time updates via Socket.io
+- ⏳ **Multi-user Editing** - Multiple users edit simultaneously
+- ⏳ **Offline Support** - Continue editing offline, auto-sync on reconnect
+- ⏳ **Git Snapshots** - Periodic commits for version history
+- ⏳ **Cursor Tracking** - See other users' cursors
+- ⏳ **User Presence** - Show who's online
+
+### v2.1.0 and Beyond
 - Email invitation system
-- Inline comments
-- Real-time collaboration (WebSocket)
-- Permission management
-
-### Phase 3
+- Inline comments & annotations
+- Permission management (read/write/admin)
 - Obsidian plugin
 - VS Code extension
-- Mobile app
-- Self-hosted option
+- Mobile app (iOS/Android)
+- AI co-editing features
+
+See [ROADMAP.md](ROADMAP.md) for detailed timeline and architecture plans.
 
 ---
 
@@ -137,6 +148,8 @@ tandem write <file> <content>
 
 ## 📚 Documentation
 
+- [ROADMAP](ROADMAP.md) - Product roadmap and hybrid CRDT+Git architecture plan
+- [CHANGELOG](CHANGELOG.md) - Version history and release notes
 - [PRD](docs/PRD.md) - Product Requirements Document
 - [API Docs](API-DOCS.md) - API Specification
 - [Handoff](HANDOFF.md) - Veda-Iris Handoff Document
@@ -173,6 +186,18 @@ MIT
 
 ---
 
-**Status**: 🚧 Weekend Side Project (MVP in progress)
+## 🔄 Current Status
 
-*Last Updated: 2025-12-05*
+**Version**: v1.1.0 (Shipped)
+**Next Milestone**: v2.0.0 - Real-Time Collaboration with CRDT
+**Development**: Active - See [ROADMAP.md](ROADMAP.md) for details
+
+### Recent Updates
+- ✅ Open Folder workspace feature
+- ✅ Workspace persistence across sessions
+- ✅ Desktop app improvements
+- 🎯 Planning hybrid CRDT+Git architecture (inspired by CodiMD/HackMD)
+
+---
+
+*Last Updated: 2025-12-06*
