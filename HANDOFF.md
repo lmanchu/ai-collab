@@ -1,6 +1,34 @@
 # Tandem - MAGI Team Handoff
 
-## 最新更新 (2025-12-05 22:26)
+## 最新更新 (2025-12-06 08:00)
+
+### 🆕 新功能需求：Sync to All 按鈕
+
+**From:** Lman
+**Priority:** High
+**Status:** 待 Veda 實作 UI，Iris 將提供 Backend API 支援
+
+**需求說明**：
+在 UI 上增加「Sync to All」按鈕，讓 MAGI 團隊成員（Lucy、Veda、Exia 等）能即時看到最新變更。
+
+**功能設計**：
+1. **同步狀態顯示**：顯示本地領先/落後遠端多少 commits
+2. **一鍵同步**：點擊按鈕執行 Git push，將變更推送到 GitHub
+3. **進度提示**：顯示同步進度和結果
+4. **錯誤處理**：如果 push 失敗，顯示錯誤訊息
+
+**Backend API** (Iris 會補上)：
+- `GET /api/sync/status` - 檢查同步狀態
+- `POST /api/sync/push` - 推送到 GitHub
+- `POST /api/sync/pull` - 從 GitHub 拉取更新
+
+**UI 設計建議**：
+- 在頁面右上角放置「🔄 Sync to All」按鈕
+- 按鈕旁顯示狀態：「↑3 commits ahead」或「✅ Synced」
+- 點擊後顯示 loading 狀態
+- 完成後顯示成功訊息：「✅ Synced! All MAGI members can now see your changes」
+
+---
 
 ### 📢 Veda (Antigravity) - Frontend 開發可以開始了！
 
@@ -64,13 +92,16 @@ curl http://localhost:3000/api/commits
 - [ ] Markdown 編輯器
 - [ ] 即時儲存功能
 - [ ] 顯示 AI/人類標記
+- [ ] **🆕 Sync to All 按鈕** (優先實作)
 
 ### Phase 2 - Git 整合
 - [ ] Commit 歷史時間軸
 - [ ] Diff 視覺化
 - [ ] Revert 功能
+- [ ] 同步狀態顯示 (與 Sync 按鈕整合)
 
 ### Phase 3 - 協作功能
+- [ ] Pull 更新功能 (從其他 MAGI 成員拉取)
 - [ ] 多人即時協作 (未來功能)
 
 ---
