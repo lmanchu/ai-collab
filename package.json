@@ -28,15 +28,21 @@
     },
     "files": [
       "electron/**/*",
-      "backend/**/*",
-      "frontend/dist/**/*",
-      "!backend/node_modules",
-      "!backend/workspace"
+      "!frontend",
+      "!backend"
     ],
     "extraResources": [
       {
-        "from": "backend/node_modules",
-        "to": "backend/node_modules"
+        "from": "frontend/dist",
+        "to": "frontend/dist"
+      },
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!workspace"
+        ]
       }
     ],
     "mac": {
@@ -88,5 +94,7 @@
     "electron-builder": "^24.9.1",
     "wait-on": "^7.2.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "electron-store": "^11.0.2"
+  }
 }

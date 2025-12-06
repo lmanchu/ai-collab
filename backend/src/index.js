@@ -198,6 +198,38 @@ app.post('/api/sync/remote', async (c) => {
   }
 });
 
+// WORKSPACE API
+
+// Get current workspace path
+app.get('/api/workspace', (c) => {
+  return c.json({ path: git.repoPath });
+});
+
+// Set workspace path
+app.post('/api/workspace', async (c) => {
+  try {
+    const { path } = await c.req.json();
+
+    if (!path) {
+      return c.json({ error: 'Workspace path is required' }, 400);
+    }
+
+    // Reinitialize GitService with new path
+    git.repoPath = path;
+    git.git = null; // Force re-initialization
+    await git.ensureGit();
+
+    console.log(`✅ Workspace changed to: ${path}`);
+
+    return c.json({
+      success: true,
+      path: git.repoPath
+    });
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
 // Start server
 const port = process.env.PORT || 3000;
 

@@ -3,12 +3,14 @@
  * Integrates backend server and frontend UI into a single desktop app
  */
 
-const { app, BrowserWindow, Menu, shell } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
+const fs = require('fs');
 
 let mainWindow;
 let backendProcess;
+let currentWorkspacePath = null;
 
 // Backend server port
 const BACKEND_PORT = 3000;
@@ -17,10 +19,67 @@ const FRONTEND_PORT = 5173;
 // Determine if running in development mode
 const isDev = process.env.NODE_ENV === 'development';
 
+// Store path for persisting workspace
+const Store = require('electron-store');
+const store = new Store();
+
+/**
+ * Open folder dialog and set workspace
+ */
+async function openFolder() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'Select Workspace Folder',
+    buttonLabel: 'Open Workspace'
+  });
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    const folderPath = result.filePaths[0];
+    console.log(`Selected workspace: ${folderPath}`);
+
+    // Save to store
+    store.set('lastWorkspacePath', folderPath);
+    currentWorkspacePath = folderPath;
+
+    // Notify backend to change workspace
+    await setBackendWorkspace(folderPath);
+
+    // Notify frontend to refresh
+    if (mainWindow) {
+      mainWindow.webContents.send('workspace:changed', folderPath);
+    }
+
+    return folderPath;
+  }
+
+  return null;
+}
+
+/**
+ * Set backend workspace via HTTP API
+ */
+async function setBackendWorkspace(workspacePath) {
+  try {
+    const response = await fetch(`http://localhost:${BACKEND_PORT}/api/workspace`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: workspacePath })
+    });
+
+    if (response.ok) {
+      console.log(`Backend workspace set to: ${workspacePath}`);
+    } else {
+      console.error('Failed to set backend workspace');
+    }
+  } catch (error) {
+    console.error('Error setting backend workspace:', error);
+  }
+}
+
 /**
  * Start backend server
  */
-function startBackend() {
+function startBackend(workspacePath = null) {
   console.log('Starting Tandem backend server...');
 
   // In production, backend is in Resources/backend
@@ -31,11 +90,19 @@ function startBackend() {
 
   console.log(`Backend path: ${backendPath}`);
 
+  // Set workspace path (either passed in or from store)
+  const workspace = workspacePath || store.get('lastWorkspacePath');
+  if (workspace) {
+    console.log(`Using workspace: ${workspace}`);
+    currentWorkspacePath = workspace;
+  }
+
   backendProcess = spawn('node', ['src/index.js'], {
     cwd: backendPath,
     env: {
       ...process.env,
-      PORT: BACKEND_PORT
+      PORT: BACKEND_PORT,
+      REPO_PATH: workspace || path.join(backendPath, 'workspace')
     }
   });
 
@@ -96,6 +163,13 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // Send workspace path to frontend when ready
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (currentWorkspacePath) {
+      mainWindow.webContents.send('workspace:changed', currentWorkspacePath);
+    }
+  });
 }
 
 /**
@@ -120,6 +194,14 @@ function createMenu() {
     {
       label: 'File',
       submenu: [
+        {
+          label: 'Open Folder...',
+          accelerator: 'CmdOrCtrl+O',
+          click: async () => {
+            await openFolder();
+          }
+        },
+        { type: 'separator' },
         {
           label: 'New File',
           accelerator: 'CmdOrCtrl+N',
@@ -188,6 +270,17 @@ function createMenu() {
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
 }
+
+/**
+ * IPC Handlers
+ */
+ipcMain.handle('workspace:get', () => {
+  return currentWorkspacePath;
+});
+
+ipcMain.handle('workspace:open', async () => {
+  return await openFolder();
+});
 
 /**
  * App lifecycle

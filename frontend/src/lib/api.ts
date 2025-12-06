@@ -126,6 +126,23 @@ export const api = {
         });
         if (!res.ok) throw new Error("Failed to pull");
         return res.json();
+    },
+
+    // Workspace API
+    async getWorkspace(): Promise<{ path: string }> {
+        const res = await fetch(`${API_BASE}/workspace`, { headers });
+        if (!res.ok) throw new Error("Failed to fetch workspace");
+        return res.json();
+    },
+
+    async setWorkspace(path: string): Promise<{ success: boolean; path: string }> {
+        const res = await fetch(`${API_BASE}/workspace`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ path })
+        });
+        if (!res.ok) throw new Error("Failed to set workspace");
+        return res.json();
     }
 }
 

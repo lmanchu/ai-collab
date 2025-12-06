@@ -18,6 +18,17 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('menu:sync', callback);
   },
 
+  // Workspace events
+  onWorkspaceChanged: (callback) => {
+    ipcRenderer.on('workspace:changed', (_event, path) => callback(path));
+  },
+  getWorkspace: () => {
+    return ipcRenderer.invoke('workspace:get');
+  },
+  openWorkspace: () => {
+    return ipcRenderer.invoke('workspace:open');
+  },
+
   // App info
   getVersion: () => {
     return process.env.npm_package_version || '1.0.0';

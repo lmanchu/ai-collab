@@ -11,6 +11,9 @@ interface AppState {
     // Commits
     commits: Commit[];
 
+    // Workspace
+    workspacePath: string | null;
+
     // UI
     isSaving: boolean;
     error: string | null;
@@ -22,6 +25,8 @@ interface AppState {
     createFile: (path: string, content?: string) => Promise<void>;
     loadCommits: (path?: string) => Promise<void>;
     refreshData: () => Promise<void>;
+    loadWorkspace: () => Promise<void>;
+    setWorkspacePath: (path: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -29,6 +34,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     currentFile: null,
     fileContent: "",
     commits: [],
+    workspacePath: null,
     isSaving: false,
     error: null,
 
@@ -123,5 +129,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch (e) {
             set({ error: "Failed to sync data" });
         }
+    },
+
+    loadWorkspace: async () => {
+        try {
+            const { path } = await api.getWorkspace();
+            set({ workspacePath: path });
+        } catch (e) {
+            console.error("Failed to load workspace:", e);
+        }
+    },
+
+    setWorkspacePath: (path: string) => {
+        set({ workspacePath: path });
     }
 }))

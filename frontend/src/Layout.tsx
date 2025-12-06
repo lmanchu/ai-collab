@@ -2,11 +2,22 @@ import { FileExplorer } from "@/components/FileExplorer"
 import { MarkdownEditor } from "@/components/MarkdownEditor"
 import { Timeline } from "@/components/Timeline"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, ArrowUp } from "lucide-react"
+import { RefreshCw, ArrowUp, Folder } from "lucide-react"
 import { useAppStore } from "@/store/useAppStore"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
+
+// Type for Electron API (injected via preload)
+declare global {
+    interface Window {
+        electron?: {
+            onWorkspaceChanged?: (callback: (path: string) => void) => void;
+            getWorkspace?: () => Promise<string>;
+            openWorkspace?: () => Promise<string | null>;
+        };
+    }
+}
 
 function SyncButton() {
     const refreshData = useAppStore(state => state.refreshData)
@@ -84,13 +95,48 @@ function SyncButton() {
     )
 }
 
+function WorkspaceIndicator() {
+    const workspacePath = useAppStore(state => state.workspacePath)
+    const setWorkspacePath = useAppStore(state => state.setWorkspacePath)
+    const loadWorkspace = useAppStore(state => state.loadWorkspace)
+    const refreshData = useAppStore(state => state.refreshData)
+
+    useEffect(() => {
+        // Load initial workspace from backend
+        loadWorkspace()
+
+        // Listen to workspace changes from Electron
+        if (window.electron?.onWorkspaceChanged) {
+            window.electron.onWorkspaceChanged(async (path: string) => {
+                console.log('[Workspace] Changed to:', path)
+                setWorkspacePath(path)
+                // Refresh files when workspace changes
+                await refreshData()
+            })
+        }
+    }, [])
+
+    // Format path to show only folder name
+    const folderName = workspacePath ? workspacePath.split('/').pop() || workspacePath : 'No workspace'
+
+    return (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Folder className="h-4 w-4" />
+            <span className="max-w-[200px] truncate" title={workspacePath || ''}>
+                {folderName}
+            </span>
+        </div>
+    )
+}
+
 export function AppLayout() {
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-background">
             {/* Header */}
             <header className="flex h-14 items-center justify-between border-b px-6">
-                <div className="flex items-center gap-2 font-semibold">
-                    <span className="text-primary text-xl tracking-tight">Tandem</span>
+                <div className="flex items-center gap-4">
+                    <span className="text-primary text-xl tracking-tight font-semibold">Tandem</span>
+                    <WorkspaceIndicator />
                 </div>
                 <div className="flex items-center gap-2">
                     <SyncButton />
