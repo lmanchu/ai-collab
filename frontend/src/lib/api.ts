@@ -31,6 +31,16 @@ export interface Commit {
     filesChanged?: string[];
 }
 
+export interface SyncStatus {
+    branch: string;
+    tracking: string | null;
+    ahead: number;
+    behind: number;
+    isSynced: boolean;
+    hasRemote: boolean;
+    error?: string;
+}
+
 export const api = {
     async getFiles(): Promise<FileNode[]> {
         const res = await fetch(`${API_BASE}/files`, { headers });
@@ -68,6 +78,31 @@ export const api = {
         if (!res.ok) throw new Error("Failed to fetch commits");
         const data = await res.json();
         return data.commits;
+    },
+
+    // Sync API
+    async getSyncStatus(): Promise<SyncStatus> {
+        const res = await fetch(`${API_BASE}/sync/status`, { headers });
+        if (!res.ok) throw new Error("Failed to fetch sync status");
+        return res.json();
+    },
+
+    async push(): Promise<{ success: boolean; message?: string; error?: string }> {
+        const res = await fetch(`${API_BASE}/sync/push`, {
+            method: "POST",
+            headers
+        });
+        if (!res.ok) throw new Error("Failed to push");
+        return res.json();
+    },
+
+    async pull(): Promise<{ success: boolean; message?: string; error?: string }> {
+        const res = await fetch(`${API_BASE}/sync/pull`, {
+            method: "POST",
+            headers
+        });
+        if (!res.ok) throw new Error("Failed to pull");
+        return res.json();
     }
 }
 

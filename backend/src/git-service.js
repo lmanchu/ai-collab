@@ -283,6 +283,135 @@ File: ${filePath}`;
     const match = body.match(/File:\s*(.+)/);
     return match ? match[1].trim() : '';
   }
+
+  // Git Sync Methods
+
+  /**
+   * Get sync status with remote
+   * Returns info about commits ahead/behind
+   */
+  async getSyncStatus() {
+    await this.ensureGit();
+
+    try {
+      // Fetch latest from remote
+      await this.git.fetch();
+
+      // Get status
+      const status = await this.git.status();
+
+      // Get branch info
+      const branch = status.current || 'master';
+      const tracking = status.tracking || `origin/${branch}`;
+
+      return {
+        branch,
+        tracking,
+        ahead: status.ahead || 0,
+        behind: status.behind || 0,
+        isSynced: status.ahead === 0 && status.behind === 0,
+        hasRemote: !!status.tracking
+      };
+    } catch (error) {
+      // If no remote configured, return default status
+      return {
+        branch: 'master',
+        tracking: null,
+        ahead: 0,
+        behind: 0,
+        isSynced: true,
+        hasRemote: false,
+        error: 'No remote repository configured'
+      };
+    }
+  }
+
+  /**
+   * Push commits to remote repository
+   */
+  async push() {
+    await this.ensureGit();
+
+    try {
+      const status = await this.git.status();
+      const branch = status.current || 'master';
+
+      // Push to origin
+      await this.git.push('origin', branch);
+
+      return {
+        success: true,
+        branch,
+        message: `Pushed to origin/${branch}`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Pull updates from remote repository
+   */
+  async pull() {
+    await this.ensureGit();
+
+    try {
+      const status = await this.git.status();
+      const branch = status.current || 'master';
+
+      // Pull from origin
+      const result = await this.git.pull('origin', branch);
+
+      return {
+        success: true,
+        branch,
+        filesChanged: result.files || [],
+        insertions: result.insertions || 0,
+        deletions: result.deletions || 0,
+        message: `Pulled from origin/${branch}`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Setup remote repository
+   * @param {string} remoteUrl - Git remote URL
+   */
+  async setRemote(remoteUrl) {
+    await this.ensureGit();
+
+    try {
+      // Check if remote exists
+      const remotes = await this.git.getRemotes();
+      const hasOrigin = remotes.some(r => r.name === 'origin');
+
+      if (hasOrigin) {
+        // Update existing remote
+        await this.git.remote(['set-url', 'origin', remoteUrl]);
+      } else {
+        // Add new remote
+        await this.git.addRemote('origin', remoteUrl);
+      }
+
+      return {
+        success: true,
+        message: 'Remote configured successfully'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
 }
 
 export default GitService;

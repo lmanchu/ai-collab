@@ -20,6 +20,7 @@ interface AppState {
     loadFile: (path: string) => Promise<void>;
     saveFile: (content: string) => Promise<void>;
     loadCommits: (path?: string) => Promise<void>;
+    refreshData: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -88,6 +89,17 @@ export const useAppStore = create<AppState>((set, get) => ({
             set({ commits: (commits as unknown) as Commit[] }); // Explicit cast if needed or fix variable name typo
         } catch (e) {
             set({ error: "Failed to load commits" });
+        }
+    },
+    refreshData: async () => {
+        try {
+            await get().loadFiles();
+            const { currentFile } = get();
+            if (currentFile) {
+                await get().loadFile(currentFile.path); // Reloads content + commits
+            }
+        } catch (e) {
+            set({ error: "Failed to sync data" });
         }
     }
 }))

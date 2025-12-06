@@ -144,6 +144,54 @@ app.post('/api/commits/:sha/revert', async (c) => {
   }
 });
 
+// SYNC API
+
+// Get sync status
+app.get('/api/sync/status', async (c) => {
+  try {
+    const status = await git.getSyncStatus();
+    return c.json(status);
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+// Push to remote
+app.post('/api/sync/push', async (c) => {
+  try {
+    const result = await git.push();
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+// Pull from remote
+app.post('/api/sync/pull', async (c) => {
+  try {
+    const result = await git.pull();
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+// Set remote URL
+app.post('/api/sync/remote', async (c) => {
+  try {
+    const { url } = await c.req.json();
+
+    if (!url) {
+      return c.json({ error: 'Remote URL is required' }, 400);
+    }
+
+    const result = await git.setRemote(url);
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
 // Start server
 const port = process.env.PORT || 3000;
 
