@@ -8,13 +8,13 @@
 
 ## 🎯 Vision
 
-在 AI 時代，協作不再只是「人與人」，而是「人 + AI 團隊」。現有工具（Google Docs、Notion、Obsidian）都是為人類設計，無法原生支援 AI 協作。
+In the AI era, collaboration is no longer just "human-to-human" but "human + AI teams". Existing tools (Google Docs, Notion, Obsidian) are designed for humans and don't natively support AI collaboration.
 
-我們打造第一個 **AI-Native** 的協作平台：
-- 人類透過 **Web UI** 編輯 Markdown
-- AI（如 Claude Code）透過 **CLI** 編輯
-- 完整的 **Git 版本控制**
-- 清楚標記「誰改的」（👤 人類 vs 🤖 AI）
+We're building the first **AI-Native** collaboration platform:
+- Humans edit Markdown via **Web UI**
+- AI (like Claude Code) edits via **CLI**
+- Full **Git version control**
+- Clear attribution of changes (👤 Human vs 🤖 AI)
 
 ---
 
@@ -23,9 +23,9 @@
 ```
 ┌─────────────────────────────────────┐
 │      Web UI (React + shadcn)        │
-│  - 檔案列表                          │
-│  - Markdown 編輯器                   │
-│  - 時間軸（版本歷史）                 │
+│  - File Explorer                    │
+│  - Markdown Editor                  │
+│  - Timeline (Version History)       │
 └─────────────────────────────────────┘
               ↕ (REST API)
 ┌─────────────────────────────────────┐
@@ -106,17 +106,19 @@ tandem write <file> <content>
 ## 🎨 Features
 
 ### MVP (Week 1)
-- ✅ Web UI（檔案列表 + Markdown 編輯器 + 時間軸）
-- ✅ CLI Tool（read/write/list）
-- ✅ Git 版本控制（自動 commit）
-- ✅ AI 標記（區分人類 vs AI commit）
+- ✅ Web UI (File Explorer + Markdown Editor + Timeline)
+- ✅ Electron Desktop App
+- ✅ File Creation (with [+] button)
+- ✅ CLI Tool (read/write/list)
+- ✅ Git version control (auto commit)
+- ✅ AI tagging (distinguish human vs AI commits)
 - ✅ Diff viewer
 
 ### Phase 2
-- Email 邀請系統
-- 批註功能（inline comments）
-- 即時協作（WebSocket）
-- 權限管理
+- Email invitation system
+- Inline comments
+- Real-time collaboration (WebSocket)
+- Permission management
 
 ### Phase 3
 - Obsidian plugin
@@ -136,8 +138,9 @@ tandem write <file> <content>
 ## 📚 Documentation
 
 - [PRD](docs/PRD.md) - Product Requirements Document
-- [API Docs](docs/API.md) - API Specification
-- [Handoff](docs/HANDOFF.md) - Veda-Iris 交接文件
+- [API Docs](API-DOCS.md) - API Specification
+- [Handoff](HANDOFF.md) - Veda-Iris Handoff Document
+- [Electron Setup](ELECTRON-README.md) - Desktop App Guide
 
 ---
 
@@ -150,14 +153,17 @@ tandem write <file> <content>
 - Zustand
 
 **Backend**:
-- Bun
+- Node.js
 - Hono
 - simple-git
-- Clerk (Auth)
-- SQLite
+
+**Desktop App**:
+- Electron 28
+- Built-in backend server
+- macOS / Windows / Linux support
 
 **Deployment**:
-- Vercel
+- Desktop app (DMG / Portable)
 
 ---
 

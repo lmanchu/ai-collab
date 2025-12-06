@@ -19,6 +19,7 @@ interface AppState {
     loadFiles: () => Promise<void>;
     loadFile: (path: string) => Promise<void>;
     saveFile: (content: string) => Promise<void>;
+    createFile: (path: string, content?: string) => Promise<void>;
     loadCommits: (path?: string) => Promise<void>;
     refreshData: () => Promise<void>;
 }
@@ -80,6 +81,27 @@ export const useAppStore = create<AppState>((set, get) => ({
             set({ fileContent: content, isSaving: false });
         } catch (e) {
             set({ error: "Failed to save file", isSaving: false });
+        }
+    },
+
+    createFile: async (path: string, content: string = "") => {
+        set({ isSaving: true });
+
+        try {
+            console.log('[createFile] Creating file:', path);
+            await api.createFile(path, content);
+            console.log('[createFile] File created successfully');
+
+            // Refresh file list
+            await get().loadFiles();
+
+            // Load the newly created file
+            await get().loadFile(path);
+
+            set({ isSaving: false });
+        } catch (e: any) {
+            console.error('[createFile] Error:', e.message, e);
+            set({ error: "Failed to create file", isSaving: false });
         }
     },
 

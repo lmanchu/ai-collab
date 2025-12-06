@@ -23,7 +23,13 @@ const isDev = process.env.NODE_ENV === 'development';
 function startBackend() {
   console.log('Starting Tandem backend server...');
 
-  const backendPath = path.join(__dirname, '../backend');
+  // In production, backend is in Resources/backend
+  // In development, backend is in ../backend
+  const backendPath = isDev
+    ? path.join(__dirname, '../backend')
+    : path.join(process.resourcesPath, 'backend');
+
+  console.log(`Backend path: ${backendPath}`);
 
   backendProcess = spawn('node', ['src/index.js'], {
     cwd: backendPath,
@@ -55,12 +61,13 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 600,
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: 'default', // Use default title bar so users can drag the window
     title: 'Tandem - Work in tandem with AI',
     backgroundColor: '#ffffff',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      webSecurity: false, // Disable for local file loading
       preload: path.join(__dirname, 'preload.js')
     }
   });
@@ -71,8 +78,13 @@ function createWindow() {
     mainWindow.loadURL(`http://localhost:${FRONTEND_PORT}`);
     mainWindow.webContents.openDevTools();
   } else {
-    // Production: Load from built files
-    mainWindow.loadFile(path.join(__dirname, '../frontend/dist/index.html'));
+    // Production: Load from Resources/frontend/dist
+    const indexPath = path.join(process.resourcesPath, 'frontend/dist/index.html');
+    console.log(`Loading frontend from: ${indexPath}`);
+    mainWindow.loadFile(indexPath);
+
+    // Open DevTools in production for debugging
+    mainWindow.webContents.openDevTools();
   }
 
   // Open external links in browser

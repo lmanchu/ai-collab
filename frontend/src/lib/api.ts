@@ -69,6 +69,29 @@ export const api = {
         if (!res.ok) throw new Error("Failed to save file");
     },
 
+    async createFile(path: string, content: string = ""): Promise<void> {
+        const url = `${API_BASE}/files/${encodeURIComponent(path)}`;
+        console.log('[createFile API] Request URL:', url);
+
+        const res = await fetch(url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+                content,
+                author: "human",
+                message: "Create new file via Tandem UI"
+            })
+        });
+
+        console.log('[createFile API] Response status:', res.status);
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.error('[createFile API] Error response:', errorText);
+            throw new Error(`Failed to create file: ${res.status} ${errorText}`);
+        }
+    },
+
     async getCommits(path?: string): Promise<Commit[]> {
         const url = path
             ? `${API_BASE}/commits?file=${encodeURIComponent(path)}`

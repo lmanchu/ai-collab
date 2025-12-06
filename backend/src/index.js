@@ -13,7 +13,13 @@ const git = new GitService();
 
 // CORS for frontend
 app.use('/*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: (origin) => {
+    // Allow all origins in Electron app (file:// protocol) and dev servers
+    if (!origin || origin.startsWith('file://') || origin.startsWith('http://localhost')) {
+      return origin || '*';
+    }
+    return null;
+  },
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
