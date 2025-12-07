@@ -15,7 +15,10 @@ import {
     Check,
     Users,
     ImagePlus,
-    Bot
+    Bot,
+    Table,
+    Search,
+    Keyboard
 } from 'lucide-react';
 import type { Author } from '../types/track';
 import type { Collaborator } from './TandemEditor';
@@ -31,6 +34,9 @@ interface ToolbarProps {
     collaborators?: Collaborator[];
     aiEnabled?: boolean;
     onToggleAI?: () => void;
+    onInsertTable?: () => void;
+    onOpenSearch?: () => void;
+    onOpenShortcuts?: () => void;
 }
 
 // Format relative time
@@ -54,7 +60,10 @@ export function Toolbar({
     author,
     collaborators = [],
     aiEnabled = false,
-    onToggleAI
+    onToggleAI,
+    onInsertTable,
+    onOpenSearch,
+    onOpenShortcuts
 }: ToolbarProps) {
     const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,42 +115,42 @@ export function Toolbar({
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleBold().run()}
                     isActive={editor.isActive('bold')}
-                    title="Bold"
+                    title="Bold (Cmd+B)"
                 >
                     <Bold className="w-4 h-4" />
                 </ToolbarButton>
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleItalic().run()}
                     isActive={editor.isActive('italic')}
-                    title="Italic"
+                    title="Italic (Cmd+I)"
                 >
                     <Italic className="w-4 h-4" />
                 </ToolbarButton>
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
                     isActive={editor.isActive('heading', { level: 1 })}
-                    title="Heading 1"
+                    title="Heading 1 (Cmd+Alt+1)"
                 >
                     <Heading1 className="w-4 h-4" />
                 </ToolbarButton>
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
                     isActive={editor.isActive('heading', { level: 2 })}
-                    title="Heading 2"
+                    title="Heading 2 (Cmd+Alt+2)"
                 >
                     <Heading2 className="w-4 h-4" />
                 </ToolbarButton>
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleBulletList().run()}
                     isActive={editor.isActive('bulletList')}
-                    title="Bullet List"
+                    title="Bullet List (Cmd+Shift+8)"
                 >
                     <List className="w-4 h-4" />
                 </ToolbarButton>
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleCodeBlock().run()}
                     isActive={editor.isActive('codeBlock')}
-                    title="Code Block"
+                    title="Code Block (Cmd+Alt+C)"
                 >
                     <Code className="w-4 h-4" />
                 </ToolbarButton>
@@ -151,6 +160,17 @@ export function Toolbar({
                 >
                     <ImagePlus className="w-4 h-4" />
                 </ToolbarButton>
+
+                {/* Table button */}
+                {onInsertTable && (
+                    <ToolbarButton
+                        onClick={onInsertTable}
+                        isActive={editor.isActive('table')}
+                        title="Insert Table"
+                    >
+                        <Table className="w-4 h-4" />
+                    </ToolbarButton>
+                )}
 
                 {/* Hidden file input for image upload */}
                 <input
@@ -185,6 +205,28 @@ export function Toolbar({
                         <Bot className="w-4 h-4" />
                         AI 助手
                     </button>
+                )}
+
+                <div className="w-px h-6 bg-gray-200 dark:bg-zinc-800 mx-2" />
+
+                {/* Search button */}
+                {onOpenSearch && (
+                    <ToolbarButton
+                        onClick={onOpenSearch}
+                        title="Search (Cmd+F)"
+                    >
+                        <Search className="w-4 h-4" />
+                    </ToolbarButton>
+                )}
+
+                {/* Keyboard shortcuts button */}
+                {onOpenShortcuts && (
+                    <ToolbarButton
+                        onClick={onOpenShortcuts}
+                        title="Keyboard Shortcuts (Cmd+/)"
+                    >
+                        <Keyboard className="w-4 h-4" />
+                    </ToolbarButton>
                 )}
             </div>
 

@@ -4,6 +4,12 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
 import Image from '@tiptap/extension-image';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { common, createLowlight } from 'lowlight';
 import * as Y from 'yjs';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import { useEffect, useMemo, useState, useCallback } from 'react';
@@ -13,6 +19,11 @@ import { Toolbar } from './Toolbar';
 import { TrackChangesSidebar } from './TrackChangesSidebar';
 import { AIAssistant } from './AIAssistant';
 import { AISettingsModal } from './AISettingsModal';
+import { SearchReplace } from './SearchReplace';
+import { KeyboardShortcuts } from './KeyboardShortcuts';
+
+// Create lowlight instance with common languages
+const lowlight = createLowlight(common);
 
 // Collaborator type for awareness
 export interface Collaborator {
@@ -50,6 +61,8 @@ export function TandemEditor({
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const handleChangeRecorded = useCallback((change: Change) => {
     setChanges((prev) => [...prev, change]);
@@ -145,6 +158,7 @@ export function TandemEditor({
     extensions: [
       StarterKit.configure({
         history: false, // Disable default history, Yjs handles it
+        codeBlock: false, // Use CodeBlockLowlight instead
       }),
       Placeholder.configure({
         placeholder: 'Start writing...',
@@ -169,6 +183,31 @@ export function TandemEditor({
       Image.configure({
         inline: true,
         allowBase64: true,
+      }),
+      // Table extensions
+      Table.configure({
+        resizable: true,
+        HTMLAttributes: {
+          class: 'border-collapse table-auto w-full',
+        },
+      }),
+      TableRow,
+      TableHeader.configure({
+        HTMLAttributes: {
+          class: 'bg-gray-100 dark:bg-zinc-800 font-semibold text-left p-2 border border-gray-300 dark:border-zinc-600',
+        },
+      }),
+      TableCell.configure({
+        HTMLAttributes: {
+          class: 'p-2 border border-gray-300 dark:border-zinc-600',
+        },
+      }),
+      // Code block with syntax highlighting
+      CodeBlockLowlight.configure({
+        lowlight,
+        HTMLAttributes: {
+          class: 'bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm font-mono',
+        },
       }),
     ],
     onUpdate: ({ editor }) => {
@@ -199,6 +238,13 @@ export function TandemEditor({
     if (editor) {
       editor.commands.rejectChange(changeId);
       setChanges((prev) => prev.filter((c) => c.id !== changeId));
+    }
+  };
+
+  // Insert table
+  const insertTable = () => {
+    if (editor) {
+      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
     }
   };
 
@@ -248,6 +294,30 @@ export function TandemEditor({
     };
   }, [provider]);
 
+  // Keyboard shortcuts handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + F for search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+      // Cmd/Ctrl + / for shortcuts help
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault();
+        setShortcutsOpen(true);
+      }
+      // Escape to close modals
+      if (e.key === 'Escape') {
+        if (searchOpen) setSearchOpen(false);
+        if (shortcutsOpen) setShortcutsOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [searchOpen, shortcutsOpen]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -269,6 +339,9 @@ export function TandemEditor({
         collaborators={collaborators}
         aiEnabled={aiEnabled}
         onToggleAI={() => setAiEnabled(!aiEnabled)}
+        onInsertTable={insertTable}
+        onOpenSearch={() => setSearchOpen(true)}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
       />
 
       <div className="flex flex-1 overflow-hidden relative">
@@ -294,11 +367,22 @@ export function TandemEditor({
             editor={editor}
           />
         )}
+
+        <SearchReplace
+          editor={editor}
+          isOpen={searchOpen}
+          onClose={() => setSearchOpen(false)}
+        />
       </div>
 
       <AISettingsModal
         isOpen={aiSettingsOpen}
         onClose={() => setAiSettingsOpen(false)}
+      />
+
+      <KeyboardShortcuts
+        isOpen={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
       />
     </div>
   );

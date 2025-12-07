@@ -2,6 +2,33 @@
 
 All notable changes to Tandem will be documented in this file.
 
+## [1.2.0] - 2025-12-07
+
+### Added
+- **Table Support** - Insert and edit tables in documents
+  - 3x3 default table with header row
+  - Resizable columns
+  - Tab/Shift+Tab navigation between cells
+  - Styled borders and header backgrounds
+- **Code Syntax Highlighting** - Enhanced code blocks with lowlight
+  - Support for 35+ programming languages (JavaScript, TypeScript, Python, etc.)
+  - Beautiful dark theme syntax colors
+  - Automatic language detection
+- **Keyboard Shortcuts Modal** - View all available shortcuts
+  - Cmd+/ to open shortcuts help
+  - Organized by category (formatting, paragraphs, tables, editing)
+  - Platform-aware key display (Cmd vs Ctrl)
+- **Search and Replace** - Find and replace text in documents
+  - Cmd+F to open search panel
+  - Case-sensitive search toggle
+  - Navigate matches with Enter/Shift+Enter
+  - Replace single or replace all
+
+### Changed
+- Updated toolbar with Table, Search, and Keyboard buttons
+- Enhanced TandemEditor with table and code block extensions
+- Added comprehensive CSS styles for tables and syntax highlighting
+
 ## [1.1.0] - 2025-12-07
 
 ### Added
