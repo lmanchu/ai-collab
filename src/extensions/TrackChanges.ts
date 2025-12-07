@@ -1,16 +1,20 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import * as Y from 'yjs';
 import type { Author, Change } from '../types/track';
 
 export interface TrackChangesOptions {
   enabled: boolean;
   author: Author;
+  ydoc?: Y.Doc;
   onChangeRecorded?: (change: Change) => void;
+  onChangesUpdated?: (changes: Change[]) => void;
 }
 
 export interface TrackChangesStorage {
   changes: Change[];
+  ychanges: Y.Array<Change> | null;
   enabled: boolean;
 }
 
@@ -42,15 +46,38 @@ export const TrackChanges = Extension.create<TrackChangesOptions, TrackChangesSt
         name: 'Anonymous',
         color: '#3B82F6',
       },
+      ydoc: undefined,
       onChangeRecorded: undefined,
+      onChangesUpdated: undefined,
     };
   },
 
   addStorage() {
     return {
       changes: [],
+      ychanges: null,
       enabled: this.options.enabled,
     };
+  },
+
+  onCreate() {
+    // Initialize Yjs array for changes if ydoc is provided
+    if (this.options.ydoc) {
+      this.storage.ychanges = this.options.ydoc.getArray<Change>('trackChanges');
+
+      // Sync initial changes from Yjs
+      this.storage.changes = this.storage.ychanges.toArray();
+
+      // Listen for remote changes
+      this.storage.ychanges.observe(() => {
+        if (this.storage.ychanges) {
+          this.storage.changes = this.storage.ychanges.toArray();
+          this.options.onChangesUpdated?.(this.storage.changes);
+          // Trigger re-render
+          this.editor.view.dispatch(this.editor.state.tr);
+        }
+      });
+    }
   },
 
   addCommands() {
@@ -82,10 +109,19 @@ export const TrackChanges = Extension.create<TrackChangesOptions, TrackChangesSt
       acceptChange:
         (changeId: string) =>
           ({ editor, tr }) => {
-            const change = this.storage.changes.find((c) => c.id === changeId);
-            if (!change) return false;
+            const changeIndex = this.storage.changes.findIndex((c) => c.id === changeId);
+            if (changeIndex === -1) return false;
+            const change = this.storage.changes[changeIndex];
 
-            // Remove from storage
+            // Remove from Yjs array if available
+            if (this.storage.ychanges) {
+              const yIndex = this.storage.ychanges.toArray().findIndex((c) => c.id === changeId);
+              if (yIndex !== -1) {
+                this.storage.ychanges.delete(yIndex, 1);
+              }
+            }
+
+            // Remove from local storage
             this.storage.changes = this.storage.changes.filter((c) => c.id !== changeId);
 
             // If it's a deletion, actually delete the content
@@ -102,10 +138,19 @@ export const TrackChanges = Extension.create<TrackChangesOptions, TrackChangesSt
       rejectChange:
         (changeId: string) =>
           ({ editor, tr }) => {
-            const change = this.storage.changes.find((c) => c.id === changeId);
-            if (!change) return false;
+            const changeIndex = this.storage.changes.findIndex((c) => c.id === changeId);
+            if (changeIndex === -1) return false;
+            const change = this.storage.changes[changeIndex];
 
-            // Remove from storage
+            // Remove from Yjs array if available
+            if (this.storage.ychanges) {
+              const yIndex = this.storage.ychanges.toArray().findIndex((c) => c.id === changeId);
+              if (yIndex !== -1) {
+                this.storage.ychanges.delete(yIndex, 1);
+              }
+            }
+
+            // Remove from local storage
             this.storage.changes = this.storage.changes.filter((c) => c.id !== changeId);
 
             // If it's an insertion, delete the inserted content
@@ -238,6 +283,10 @@ export const TrackChanges = Extension.create<TrackChangesOptions, TrackChangesSt
                     timestamp: new Date().toISOString(),
                   };
                   extension.storage.changes.push(change);
+                  // Also push to Yjs array for sync
+                  if (extension.storage.ychanges) {
+                    extension.storage.ychanges.push([change]);
+                  }
                   extension.options.onChangeRecorded?.(change);
                 }
                 // Insertion
@@ -257,6 +306,10 @@ export const TrackChanges = Extension.create<TrackChangesOptions, TrackChangesSt
                     timestamp: new Date().toISOString(),
                   };
                   extension.storage.changes.push(change);
+                  // Also push to Yjs array for sync
+                  if (extension.storage.ychanges) {
+                    extension.storage.ychanges.push([change]);
+                  }
                   extension.options.onChangeRecorded?.(change);
                 }
               });

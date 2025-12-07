@@ -73,7 +73,9 @@ export function TandemEditor({
       TrackChanges.configure({
         enabled: trackingEnabled,
         author,
+        ydoc,
         onChangeRecorded: handleChangeRecorded,
+        onChangesUpdated: setChanges,
       }),
     ],
     onUpdate: ({ editor }) => {
