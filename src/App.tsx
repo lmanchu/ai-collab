@@ -3,8 +3,9 @@ import { TandemEditor } from './components/TandemEditor';
 import { FileBrowser } from './components/FileBrowser';
 import { ServerSettings } from './components/ServerSettings';
 import { PasswordGate } from './components/PasswordGate';
+import { GlobalSearch } from './components/GlobalSearch';
 import { createAuthor } from './types/track';
-import { FileText, Settings } from 'lucide-react';
+import { FileText, Settings, Search } from 'lucide-react';
 import type { Editor } from '@tiptap/react';
 import { marked } from 'marked';
 
@@ -17,6 +18,7 @@ function App() {
   const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<{ documentId: string; content: string } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const editorRef = useRef<Editor | null>(null);
 
   // Handle URL doc parameter for shared links
@@ -37,6 +39,19 @@ function App() {
         setShowSettings(true);
       });
     }
+  }, []);
+
+  // Global keyboard shortcut for search (Cmd+Shift+F)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
+        e.preventDefault();
+        setShowGlobalSearch(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleEditorReady = useCallback((editor: Editor | null) => {
@@ -90,6 +105,13 @@ function App() {
             Human + AI Collaboration
           </span>
           <button
+            onClick={() => setShowGlobalSearch(true)}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+            title="全文搜尋 (⌘+Shift+F)"
+          >
+            <Search className="w-4 h-4 text-gray-500 dark:text-zinc-400" />
+          </button>
+          <button
             onClick={() => setShowSettings(true)}
             className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
             title="伺服器設定"
@@ -141,6 +163,16 @@ function App() {
       <footer className="h-8 flex items-center justify-center text-[10px] text-gray-400 dark:text-zinc-600 uppercase tracking-widest font-medium border-t border-gray-100 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         Tandem 3.0
       </footer>
+
+      {/* Global Search Modal */}
+      <GlobalSearch
+        isOpen={showGlobalSearch}
+        onClose={() => setShowGlobalSearch(false)}
+        onSelectDocument={(docId) => {
+          setCurrentDocumentId(docId);
+          setShowGlobalSearch(false);
+        }}
+      />
 
       {/* Server Settings Modal */}
       <ServerSettings isOpen={showSettings} onClose={() => setShowSettings(false)} />

@@ -1,6 +1,7 @@
 import { Hocuspocus } from '@hocuspocus/server';
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as Y from 'yjs';
@@ -54,11 +55,50 @@ interface VersionInfo {
 }
 
 const VERSIONS_DIR = path.join(DATA_DIR, 'versions');
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+const TRASH_DIR = path.join(DATA_DIR, 'trash');
 
 // Ensure versions directory exists
 if (!fs.existsSync(VERSIONS_DIR)) {
   fs.mkdirSync(VERSIONS_DIR, { recursive: true });
 }
+
+// Ensure uploads directory exists
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Ensure trash directory exists
+if (!fs.existsSync(TRASH_DIR)) {
+  fs.mkdirSync(TRASH_DIR, { recursive: true });
+}
+
+// Configure multer for image uploads
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `img-${uniqueSuffix}${ext}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images are allowed.'));
+    }
+  }
+});
 
 function getVersionsDir(documentName: string): string {
   const safeName = documentName.replace(/[^a-zA-Z0-9-_]/g, '_');
@@ -255,12 +295,115 @@ app.delete('/api/documents/:id', requireAuth, (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
+    // Move to trash instead of deleting
+    const safeName = req.params.id.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const trashFilePath = path.join(TRASH_DIR, `${safeName}.track`);
+
+    // Add deletion metadata
+    const data = JSON.parse(fs.readFileSync(trackFilePath, 'utf-8')) as TrackFileData;
+    (data as TrackFileData & { deletedAt: string }).deletedAt = new Date().toISOString();
+    fs.writeFileSync(trashFilePath, JSON.stringify(data, null, 2));
+
+    // Remove from main directory
     fs.unlinkSync(trackFilePath);
-    console.log(`Document deleted: ${req.params.id}`);
+    console.log(`Document moved to trash: ${req.params.id}`);
     res.status(204).send();
   } catch (error) {
-    console.error('Error deleting document:', error);
+    console.error('Error moving document to trash:', error);
     res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
+// Trash API endpoints
+// List trashed documents
+app.get('/api/trash', requireAuth, (_req, res) => {
+  try {
+    const files = fs.readdirSync(TRASH_DIR).filter(f => f.endsWith('.track'));
+    const documents = files.map(file => {
+      const filePath = path.join(TRASH_DIR, file);
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as TrackFileData & { deletedAt?: string };
+      return {
+        id: data.documentId,
+        title: data.title || data.documentId,
+        deletedAt: data.deletedAt || data.updatedAt,
+        createdAt: data.createdAt || data.updatedAt,
+      };
+    });
+    // Sort by deletion date, newest first
+    documents.sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
+    res.json(documents);
+  } catch (error) {
+    console.error('Error listing trash:', error);
+    res.status(500).json({ error: 'Failed to list trash' });
+  }
+});
+
+// Restore document from trash
+app.post('/api/trash/:id/restore', requireAuth, (req, res) => {
+  try {
+    const safeName = req.params.id.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const trashFilePath = path.join(TRASH_DIR, `${safeName}.track`);
+
+    if (!fs.existsSync(trashFilePath)) {
+      return res.status(404).json({ error: 'Document not found in trash' });
+    }
+
+    const trackFilePath = getTrackFilePath(req.params.id);
+    if (fs.existsSync(trackFilePath)) {
+      return res.status(409).json({ error: 'Document with same ID already exists' });
+    }
+
+    // Remove deletion metadata and restore
+    const data = JSON.parse(fs.readFileSync(trashFilePath, 'utf-8')) as TrackFileData & { deletedAt?: string };
+    delete data.deletedAt;
+    data.updatedAt = new Date().toISOString();
+
+    fs.writeFileSync(trackFilePath, JSON.stringify(data, null, 2));
+    fs.unlinkSync(trashFilePath);
+
+    console.log(`Document restored from trash: ${req.params.id}`);
+    res.json({
+      id: data.documentId,
+      title: data.title,
+      message: 'Document restored successfully',
+    });
+  } catch (error) {
+    console.error('Error restoring document:', error);
+    res.status(500).json({ error: 'Failed to restore document' });
+  }
+});
+
+// Permanently delete from trash
+app.delete('/api/trash/:id', requireAuth, (req, res) => {
+  try {
+    const safeName = req.params.id.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const trashFilePath = path.join(TRASH_DIR, `${safeName}.track`);
+
+    if (!fs.existsSync(trashFilePath)) {
+      return res.status(404).json({ error: 'Document not found in trash' });
+    }
+
+    fs.unlinkSync(trashFilePath);
+    console.log(`Document permanently deleted: ${req.params.id}`);
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error permanently deleting document:', error);
+    res.status(500).json({ error: 'Failed to permanently delete document' });
+  }
+});
+
+// Empty trash (delete all)
+app.delete('/api/trash', requireAuth, (_req, res) => {
+  try {
+    const files = fs.readdirSync(TRASH_DIR).filter(f => f.endsWith('.track'));
+    files.forEach(file => {
+      fs.unlinkSync(path.join(TRASH_DIR, file));
+    });
+    console.log(`Trash emptied: ${files.length} documents permanently deleted`);
+    res.json({ message: `${files.length} documents permanently deleted` });
+  } catch (error) {
+    console.error('Error emptying trash:', error);
+    res.status(500).json({ error: 'Failed to empty trash' });
   }
 });
 
@@ -564,6 +707,151 @@ app.post('/api/documents/:id/versions/:versionId/restore', requireAuth, (req, re
     res.status(500).json({ error: 'Failed to restore version' });
   }
 });
+
+// Full-text search across all documents
+interface SearchMatch {
+  text: string;
+  context: string;
+  position: number;
+}
+
+interface SearchResultItem {
+  documentId: string;
+  documentTitle: string;
+  matches: SearchMatch[];
+}
+
+// Helper function to extract plain text from HTML
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')  // Remove HTML tags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')      // Normalize whitespace
+    .trim();
+}
+
+// Helper function to get context around a match
+function getMatchContext(text: string, matchIndex: number, matchLength: number, contextSize: number = 50): string {
+  const start = Math.max(0, matchIndex - contextSize);
+  const end = Math.min(text.length, matchIndex + matchLength + contextSize);
+
+  let context = text.slice(start, end);
+
+  // Add ellipsis if truncated
+  if (start > 0) context = '...' + context;
+  if (end < text.length) context = context + '...';
+
+  return context;
+}
+
+app.get('/api/search', requireAuth, (req, res) => {
+  try {
+    const query = (req.query.q as string || '').trim().toLowerCase();
+
+    if (!query || query.length < 2) {
+      return res.json({ results: [] });
+    }
+
+    const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.track'));
+    const results: SearchResultItem[] = [];
+
+    for (const file of files) {
+      try {
+        const filePath = path.join(DATA_DIR, file);
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as TrackFileData;
+
+        // Skip if no content
+        if (!data.yDocState || data.yDocState.length === 0) continue;
+
+        // Create Yjs doc and apply state
+        const doc = new Y.Doc();
+        const state = new Uint8Array(data.yDocState);
+        Y.applyUpdate(doc, state);
+
+        // Get HTML content and convert to plain text
+        const fragment = doc.getXmlFragment('default');
+        const html = yXmlFragmentToHtml(fragment);
+        const plainText = htmlToPlainText(html);
+
+        // Search for matches
+        const matches: SearchMatch[] = [];
+        const lowerText = plainText.toLowerCase();
+        let searchIndex = 0;
+
+        while (searchIndex < lowerText.length) {
+          const matchIndex = lowerText.indexOf(query, searchIndex);
+          if (matchIndex === -1) break;
+
+          // Get the actual matched text (preserving case)
+          const matchedText = plainText.slice(matchIndex, matchIndex + query.length);
+
+          matches.push({
+            text: matchedText,
+            context: getMatchContext(plainText, matchIndex, query.length),
+            position: matchIndex,
+          });
+
+          searchIndex = matchIndex + query.length;
+
+          // Limit matches per document
+          if (matches.length >= 5) break;
+        }
+
+        if (matches.length > 0) {
+          results.push({
+            documentId: data.documentId,
+            documentTitle: data.title || data.documentId,
+            matches,
+          });
+        }
+      } catch (docError) {
+        console.error(`Error searching document ${file}:`, docError);
+        // Continue with other documents
+      }
+    }
+
+    // Sort by number of matches (more matches = more relevant)
+    results.sort((a, b) => b.matches.length - a.matches.length);
+
+    // Limit total results
+    res.json({ results: results.slice(0, 20) });
+  } catch (error) {
+    console.error('Error searching documents:', error);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// Image upload endpoint
+app.post('/api/upload', requireAuth, upload.single('image'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const imageUrl = `/uploads/${req.file.filename}`;
+    console.log(`Image uploaded: ${req.file.filename}`);
+
+    res.json({
+      success: true,
+      url: imageUrl,
+      filename: req.file.filename,
+      size: req.file.size,
+    });
+  } catch (error) {
+    console.error('Error uploading image:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
+// Serve uploaded images (with auth check for API consistency)
+app.use('/uploads', express.static(UPLOADS_DIR, {
+  maxAge: '7d', // Cache for 7 days
+  etag: true,
+}));
 
 // Serve static files in production
 if (IS_PRODUCTION) {

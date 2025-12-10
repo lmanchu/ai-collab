@@ -19,12 +19,15 @@ import {
     Table,
     Search,
     Keyboard,
-    MessageCircle
+    MessageCircle,
+    History
 } from 'lucide-react';
 import type { Author } from '../types/track';
 import type { Collaborator } from './TandemEditor';
 import { ExportMenu } from './ExportMenu';
 import { ShareMenu } from './ShareMenu';
+import { OfflineIndicator } from './OfflineIndicator';
+import { getAuthHeaders } from './PasswordGate';
 
 interface ToolbarProps {
     editor: Editor | null;
@@ -47,6 +50,7 @@ interface ToolbarProps {
     documentTitle?: string;
     documentId?: string;
     onImportMarkdown?: (content: string) => void;
+    onOpenVersionHistory?: () => void;
 }
 
 // Format relative time
@@ -80,24 +84,46 @@ export function Toolbar({
     commentsCount = 0,
     documentTitle = 'document',
     documentId = '',
-    onImportMarkdown
+    onImportMarkdown,
+    onOpenVersionHistory
 }: ToolbarProps) {
     const imageInputRef = useRef<HTMLInputElement>(null);
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !editor) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const src = event.target?.result as string;
-            editor.chain().focus().setImage({ src }).run();
-        };
-        reader.readAsDataURL(file);
-
-        // Reset input
+        // Reset input first
         if (imageInputRef.current) {
             imageInputRef.current.value = '';
+        }
+
+        try {
+            // Upload to server
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: formData,
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                editor.chain().focus().setImage({ src: data.url }).run();
+            } else {
+                throw new Error('Upload failed');
+            }
+        } catch (error) {
+            console.error('Image upload failed:', error);
+            // Fallback to base64
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const src = event.target?.result as string;
+                editor.chain().focus().setImage({ src }).run();
+            };
+            reader.readAsDataURL(file);
         }
     };
 
@@ -273,6 +299,16 @@ export function Toolbar({
                     </ToolbarButton>
                 )}
 
+                {/* Version history button */}
+                {onOpenVersionHistory && (
+                    <ToolbarButton
+                        onClick={onOpenVersionHistory}
+                        title="版本歷史"
+                    >
+                        <History className="w-4 h-4" />
+                    </ToolbarButton>
+                )}
+
                 <div className="w-px h-6 bg-gray-200 dark:bg-zinc-800 mx-2" />
 
                 {/* Export Menu */}
@@ -292,6 +328,9 @@ export function Toolbar({
             </div>
 
             <div className="flex items-center gap-4">
+                {/* Offline Indicator */}
+                <OfflineIndicator />
+
                 {/* Save Status Indicator */}
                 <div className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md ${
                     !isConnected

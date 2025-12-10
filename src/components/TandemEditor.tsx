@@ -24,9 +24,30 @@ import { AIAssistant } from './AIAssistant';
 import { AISettingsModal } from './AISettingsModal';
 import { SearchReplace } from './SearchReplace';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
+import { VersionHistory } from './VersionHistory';
 import { MentionList, type MentionListRef } from './MentionList';
 import { ReactRenderer } from '@tiptap/react';
 import tippy, { type Instance } from 'tippy.js';
+import { getAuthHeaders } from './PasswordGate';
+
+// Upload image to server
+async function uploadImage(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to upload image');
+  }
+
+  const data = await response.json();
+  return data.url;
+}
 
 // Create lowlight instance with common languages
 const lowlight = createLowlight(common);
@@ -71,6 +92,7 @@ export function TandemEditor({
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [commentsEnabled, setCommentsEnabled] = useState(false);
   const [comments, setComments] = useState<CommentData[]>([]);
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
 
   const handleChangeRecorded = useCallback((change: Change) => {
     setChanges((prev) => [...prev, change]);
@@ -117,16 +139,29 @@ export function TandemEditor({
             event.preventDefault();
             const file = item.getAsFile();
             if (file) {
-              const reader = new FileReader();
-              reader.onload = (e) => {
-                const src = e.target?.result as string;
-                view.dispatch(
-                  view.state.tr.replaceSelectionWith(
-                    view.state.schema.nodes.image.create({ src })
-                  )
-                );
-              };
-              reader.readAsDataURL(file);
+              // Upload to server instead of base64
+              uploadImage(file)
+                .then((src) => {
+                  view.dispatch(
+                    view.state.tr.replaceSelectionWith(
+                      view.state.schema.nodes.image.create({ src })
+                    )
+                  );
+                })
+                .catch((error) => {
+                  console.error('Image upload failed:', error);
+                  // Fallback to base64 if server upload fails
+                  const reader = new FileReader();
+                  reader.onload = (e) => {
+                    const src = e.target?.result as string;
+                    view.dispatch(
+                      view.state.tr.replaceSelectionWith(
+                        view.state.schema.nodes.image.create({ src })
+                      )
+                    );
+                  };
+                  reader.readAsDataURL(file);
+                });
               return true;
             }
           }
@@ -140,23 +175,40 @@ export function TandemEditor({
         for (const file of files) {
           if (file.type.startsWith('image/')) {
             event.preventDefault();
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              const src = e.target?.result as string;
-              const coordinates = view.posAtCoords({
-                left: event.clientX,
-                top: event.clientY,
+            const coordinates = view.posAtCoords({
+              left: event.clientX,
+              top: event.clientY,
+            });
+
+            // Upload to server instead of base64
+            uploadImage(file)
+              .then((src) => {
+                if (coordinates) {
+                  view.dispatch(
+                    view.state.tr.insert(
+                      coordinates.pos,
+                      view.state.schema.nodes.image.create({ src })
+                    )
+                  );
+                }
+              })
+              .catch((error) => {
+                console.error('Image upload failed:', error);
+                // Fallback to base64 if server upload fails
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                  const src = e.target?.result as string;
+                  if (coordinates) {
+                    view.dispatch(
+                      view.state.tr.insert(
+                        coordinates.pos,
+                        view.state.schema.nodes.image.create({ src })
+                      )
+                    );
+                  }
+                };
+                reader.readAsDataURL(file);
               });
-              if (coordinates) {
-                view.dispatch(
-                  view.state.tr.insert(
-                    coordinates.pos,
-                    view.state.schema.nodes.image.create({ src })
-                  )
-                );
-              }
-            };
-            reader.readAsDataURL(file);
             return true;
           }
         }
@@ -531,6 +583,7 @@ export function TandemEditor({
         commentsCount={comments.filter((c) => !c.resolved).length}
         documentTitle={documentId}
         documentId={documentId}
+        onOpenVersionHistory={() => setVersionHistoryOpen(true)}
       />
 
       <div className="flex flex-1 overflow-hidden relative">
@@ -583,6 +636,12 @@ export function TandemEditor({
       <KeyboardShortcuts
         isOpen={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
+      />
+
+      <VersionHistory
+        isOpen={versionHistoryOpen}
+        onClose={() => setVersionHistoryOpen(false)}
+        documentId={documentId}
       />
     </div>
   );

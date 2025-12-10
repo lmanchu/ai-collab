@@ -2,6 +2,36 @@
 
 All notable changes to Tandem will be documented in this file.
 
+## [1.5.0] - 2025-12-10
+
+### Added
+- **Trash/Recycle Bin** - Soft delete with recovery capability
+  - Deleted documents move to trash instead of permanent deletion
+  - TrashBrowser modal to view and manage trashed documents
+  - Restore single or multiple documents from trash
+  - Permanent delete option for individual documents
+  - Empty trash to permanently remove all trashed documents
+  - Trash button in file browser sidebar header
+- **Server-side Image Upload** - Persistent image storage
+  - Images uploaded to server's `data/uploads` directory
+  - `POST /api/upload` endpoint with multer for file handling
+  - 10MB file size limit, supports JPEG, PNG, GIF, WebP, SVG
+  - Base64 fallback when server upload fails
+  - Modified paste, drop, and toolbar image upload handlers
+- **Version History UI Integration** - Access version history from toolbar
+  - History button added to editor toolbar
+  - Quick access to document versions while editing
+
+### Changed
+- Delete confirmation now indicates documents move to trash
+- Updated file browser with trash icon button
+- Image uploads use server storage with unique filenames
+
+### Technical
+- Added multer dependency for multipart form data handling
+- Trash API endpoints: `GET /api/trash`, `POST /api/trash/:id/restore`, `DELETE /api/trash/:id`, `DELETE /api/trash`
+- Trash directory created automatically on server startup
+
 ## [1.4.0] - 2025-12-10
 
 ### Added
