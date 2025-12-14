@@ -36,7 +36,7 @@ function getAuthHeaders(): Record<string, string> {
 const server = new Server(
   {
     name: 'tandem-mcp',
-    version: '1.0.0',
+    version: '1.7.0',
   },
   {
     capabilities: {
@@ -166,6 +166,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ['projectName'],
+        },
+      },
+      {
+        name: 'tandem_suggest_changes',
+        description: 'Submit local changes as Track Changes suggestions. Instead of overwriting the document, changes will appear as suggestions that users can accept or reject in Tandem. Perfect for bidirectional sync where conflicts need human review.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            documentId: {
+              type: 'string',
+              description: 'The ID of the document to suggest changes to',
+            },
+            content: {
+              type: 'string',
+              description: 'The new content (Markdown). Differences from current content will become Track Changes suggestions.',
+            },
+            source: {
+              type: 'string',
+              description: 'Source identifier (e.g., "Obsidian PKM", "Local Editor"). Defaults to "Obsidian Sync".',
+            },
+          },
+          required: ['documentId', 'content'],
+        },
+      },
+      {
+        name: 'tandem_get_track_changes',
+        description: 'Get all pending Track Changes for a document. Shows suggested insertions and deletions awaiting review.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            documentId: {
+              type: 'string',
+              description: 'The ID of the document to get track changes for',
+            },
+          },
+          required: ['documentId'],
         },
       },
     ],
@@ -442,6 +478,100 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: `Project: ${projectName}\nDocuments: ${projectDocs.length}\n\n${JSON.stringify(projectDocs, null, 2)}`,
+            },
+          ],
+        };
+      }
+
+      case 'tandem_suggest_changes': {
+        const { documentId, content, source } = args as {
+          documentId: string;
+          content: string;
+          source?: string;
+        };
+
+        const response = await fetch(
+          `${TANDEM_API_URL}/api/documents/${encodeURIComponent(documentId)}/suggest-changes`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders(),
+            },
+            body: JSON.stringify({ content, source: source || 'Obsidian Sync' }),
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error(`Document not found: ${documentId}`);
+          }
+          throw new Error(`Failed to suggest changes: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.changesCount === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `No changes detected for document: ${documentId}`,
+              },
+            ],
+          };
+        }
+
+        // Format the changes summary
+        const changesSummary = result.changes
+          .map((c: { type: string; preview: string }) => `  - ${c.type}: "${c.preview}..."`)
+          .join('\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Suggested ${result.changesCount} changes to document: ${documentId}\n\nChanges:\n${changesSummary}\n\nOpen Tandem to review and accept/reject these suggestions.`,
+            },
+          ],
+        };
+      }
+
+      case 'tandem_get_track_changes': {
+        const { documentId } = args as { documentId: string };
+
+        const response = await fetch(
+          `${TANDEM_API_URL}/api/documents/${encodeURIComponent(documentId)}/track-changes`,
+          {
+            headers: getAuthHeaders(),
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error(`Document not found: ${documentId}`);
+          }
+          throw new Error(`Failed to get track changes: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.changesCount === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `No pending track changes for document: ${documentId}`,
+              },
+            ],
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Track Changes for ${documentId}:\nTotal: ${result.changesCount} pending changes\n\n${JSON.stringify(result.changes, null, 2)}`,
             },
           ],
         };

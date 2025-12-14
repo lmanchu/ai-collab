@@ -9,6 +9,8 @@ import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import { marked } from 'marked';
+import TurndownService from 'turndown';
+import * as Diff from 'diff';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -441,6 +443,283 @@ app.get('/api/documents/:id/content', requireAuth, (req, res) => {
   }
 });
 
+// GET content as Markdown (for Obsidian sync)
+app.get('/api/documents/:id/markdown', requireAuth, (req, res) => {
+  try {
+    const trackFilePath = getTrackFilePath(req.params.id);
+
+    if (!fs.existsSync(trackFilePath)) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const data = JSON.parse(fs.readFileSync(trackFilePath, 'utf-8')) as TrackFileData;
+
+    // If no Yjs state, return empty content
+    if (!data.yDocState || data.yDocState.length === 0) {
+      return res.json({ content: '', format: 'markdown' });
+    }
+
+    // Create Yjs doc and apply state
+    const doc = new Y.Doc();
+    const state = new Uint8Array(data.yDocState);
+    Y.applyUpdate(doc, state);
+
+    // Get content from Yjs as HTML first
+    const fragment = doc.getXmlFragment('default');
+    const html = yXmlFragmentToHtml(fragment);
+
+    // Convert HTML to Markdown using Turndown
+    const turndownService = new TurndownService({
+      headingStyle: 'atx',
+      codeBlockStyle: 'fenced',
+      emDelimiter: '*',
+      bulletListMarker: '-',
+    });
+
+    // Custom rules for better markdown conversion
+    turndownService.addRule('strikethrough', {
+      filter: ['del', 's'],
+      replacement: (content: string) => `~~${content}~~`,
+    });
+
+    const markdown = turndownService.turndown(html);
+
+    res.json({ content: markdown, format: 'markdown', title: data.title });
+  } catch (error) {
+    console.error('Error getting document markdown:', error);
+    res.status(500).json({ error: 'Failed to get document markdown' });
+  }
+});
+
+// ==================== Track Changes Sync Types ====================
+
+interface SyncAuthor {
+  id: string;
+  type: 'human' | 'ai' | 'sync';
+  name: string;
+  color: string;
+}
+
+interface SyncPosition {
+  line: number;
+  column: number;
+  offset: number;
+  pmPos?: number;
+}
+
+interface SyncChange {
+  id: string;
+  type: 'insert' | 'delete';
+  anchor: SyncPosition;
+  content?: string;
+  oldContent?: string;
+  author: SyncAuthor;
+  timestamp: string;
+}
+
+// Default author for sync operations
+function createSyncAuthor(source: string = 'Obsidian Sync'): SyncAuthor {
+  return {
+    id: `sync-${Date.now()}`,
+    type: 'sync',
+    name: source,
+    color: '#10B981', // Green for sync changes
+  };
+}
+
+// POST suggest-changes - Add local changes as Track Changes suggestions
+app.post('/api/documents/:id/suggest-changes', requireAuth, async (req, res) => {
+  try {
+    const trackFilePath = getTrackFilePath(req.params.id);
+
+    if (!fs.existsSync(trackFilePath)) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const { content, source } = req.body;
+    if (typeof content !== 'string') {
+      return res.status(400).json({ error: 'Content must be a string' });
+    }
+
+    const data = JSON.parse(fs.readFileSync(trackFilePath, 'utf-8')) as TrackFileData;
+
+    // Get current Tandem content as markdown
+    let currentMarkdown = '';
+    if (data.yDocState && data.yDocState.length > 0) {
+      const doc = new Y.Doc();
+      const state = new Uint8Array(data.yDocState);
+      Y.applyUpdate(doc, state);
+
+      const fragment = doc.getXmlFragment('default');
+      const html = yXmlFragmentToHtml(fragment);
+
+      const turndownService = new TurndownService({
+        headingStyle: 'atx',
+        codeBlockStyle: 'fenced',
+        emDelimiter: '*',
+        bulletListMarker: '-',
+      });
+      currentMarkdown = turndownService.turndown(html);
+    }
+
+    // Normalize line endings
+    const normalizedCurrent = currentMarkdown.replace(/\r\n/g, '\n').trim();
+    const normalizedNew = content.replace(/\r\n/g, '\n').trim();
+
+    // If content is the same, no changes needed
+    if (normalizedCurrent === normalizedNew) {
+      return res.json({
+        success: true,
+        message: 'No changes detected',
+        changesCount: 0,
+      });
+    }
+
+    // Compute diff using word-based diff for better readability
+    // This produces more meaningful changes (words/phrases instead of individual chars)
+    const diffs = Diff.diffWords(normalizedCurrent, normalizedNew);
+
+    // Convert diffs to Track Changes
+    const author = createSyncAuthor(source || 'Obsidian Sync');
+    const timestamp = new Date().toISOString();
+    const changes: SyncChange[] = [];
+
+    let offset = 0;
+    let line = 1;
+    let column = 0;
+
+    for (const part of diffs) {
+      const text = part.value;
+
+      if (part.added) {
+        // Insert change
+        changes.push({
+          id: crypto.randomUUID(),
+          type: 'insert',
+          anchor: { line, column, offset },
+          content: text,
+          author,
+          timestamp,
+        });
+        // Don't advance offset for inserts (they don't consume original text)
+      } else if (part.removed) {
+        // Delete change
+        changes.push({
+          id: crypto.randomUUID(),
+          type: 'delete',
+          anchor: { line, column, offset },
+          oldContent: text,
+          author,
+          timestamp,
+        });
+        // Advance position through deleted text
+        for (const char of text) {
+          if (char === '\n') {
+            line++;
+            column = 0;
+          } else {
+            column++;
+          }
+          offset++;
+        }
+      } else {
+        // Unchanged - advance position
+        for (const char of text) {
+          if (char === '\n') {
+            line++;
+            column = 0;
+          } else {
+            column++;
+          }
+          offset++;
+        }
+      }
+    }
+
+    if (changes.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No significant changes detected',
+        changesCount: 0,
+      });
+    }
+
+    // Load existing Y.js document and push changes to trackChanges array
+    const doc = new Y.Doc();
+    if (data.yDocState && data.yDocState.length > 0) {
+      const state = new Uint8Array(data.yDocState);
+      Y.applyUpdate(doc, state);
+    }
+
+    const ychanges = doc.getArray('trackChanges');
+
+    // Push all new changes at once
+    ychanges.push(changes);
+
+    // Save updated state
+    const newState = Y.encodeStateAsUpdate(doc);
+    data.yDocState = Array.from(newState);
+    data.changes = ychanges.toArray();
+    data.updatedAt = new Date().toISOString();
+
+    fs.writeFileSync(trackFilePath, JSON.stringify(data, null, 2));
+
+    console.log(`Added ${changes.length} track changes to ${req.params.id} from ${source || 'Obsidian Sync'}`);
+
+    // Force connected clients to refresh
+    const hocuspocusDoc = hocuspocus.documents.get(req.params.id);
+    if (hocuspocusDoc) {
+      hocuspocus.closeConnections(req.params.id);
+    }
+
+    res.json({
+      success: true,
+      message: `Added ${changes.length} suggested changes`,
+      changesCount: changes.length,
+      changes: changes.map(c => ({
+        id: c.id,
+        type: c.type,
+        preview: (c.content || c.oldContent || '').slice(0, 50),
+      })),
+    });
+  } catch (error) {
+    console.error('Error adding track changes:', error);
+    res.status(500).json({ error: 'Failed to add track changes' });
+  }
+});
+
+// GET track-changes - Get all pending track changes for a document
+app.get('/api/documents/:id/track-changes', requireAuth, (req, res) => {
+  try {
+    const trackFilePath = getTrackFilePath(req.params.id);
+
+    if (!fs.existsSync(trackFilePath)) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const data = JSON.parse(fs.readFileSync(trackFilePath, 'utf-8')) as TrackFileData;
+
+    // Load Y.js document and get trackChanges array
+    const doc = new Y.Doc();
+    if (data.yDocState && data.yDocState.length > 0) {
+      const state = new Uint8Array(data.yDocState);
+      Y.applyUpdate(doc, state);
+    }
+
+    const ychanges = doc.getArray('trackChanges');
+    const changes = ychanges.toArray();
+
+    res.json({
+      documentId: req.params.id,
+      changesCount: changes.length,
+      changes,
+    });
+  } catch (error) {
+    console.error('Error getting track changes:', error);
+    res.status(500).json({ error: 'Failed to get track changes' });
+  }
+});
+
 // PUT content (accept HTML or markdown)
 app.put('/api/documents/:id/content', requireAuth, (req, res) => {
   try {
@@ -543,7 +822,47 @@ function xmlTextToHtml(xmlText: Y.XmlText): string {
   return html;
 }
 
-// Helper: Convert Yjs XmlFragment to HTML
+// Map TipTap node names to standard HTML tags
+function tipTapToHtmlTag(nodeName: string, attrs: Record<string, unknown>): { tag: string; attrs: string } {
+  const name = nodeName.toLowerCase();
+
+  // Handle heading with level attribute
+  if (name === 'heading') {
+    const level = attrs.level || 1;
+    return { tag: `h${level}`, attrs: '' };
+  }
+
+  // Map TipTap nodes to HTML
+  const mapping: Record<string, string> = {
+    'paragraph': 'p',
+    'bulletlist': 'ul',
+    'orderedlist': 'ol',
+    'listitem': 'li',
+    'codeblock': 'pre',
+    'blockquote': 'blockquote',
+    'horizontalrule': 'hr',
+    'hardbreak': 'br',
+    'table': 'table',
+    'tablerow': 'tr',
+    'tableheader': 'th',
+    'tablecell': 'td',
+    'image': 'img',
+  };
+
+  const tag = mapping[name] || name;
+
+  // Build attributes string (excluding internal TipTap attrs like 'level')
+  let attrStr = '';
+  for (const [key, value] of Object.entries(attrs)) {
+    if (key !== 'level' && value !== undefined && value !== null) {
+      attrStr += ` ${key}="${escapeHtml(String(value))}"`;
+    }
+  }
+
+  return { tag, attrs: attrStr };
+}
+
+// Helper: Convert Yjs XmlFragment to standard HTML
 function yXmlFragmentToHtml(fragment: Y.XmlFragment): string {
   let html = '';
 
@@ -552,23 +871,16 @@ function yXmlFragmentToHtml(fragment: Y.XmlFragment): string {
       // Use delta-based conversion to properly handle marks
       html += xmlTextToHtml(item);
     } else if (item instanceof Y.XmlElement) {
-      const tagName = item.nodeName.toLowerCase();
       const attrs = item.getAttributes();
-      let attrStr = '';
-
-      for (const [key, value] of Object.entries(attrs)) {
-        if (value !== undefined && value !== null) {
-          attrStr += ` ${key}="${escapeHtml(String(value))}"`;
-        }
-      }
+      const { tag, attrs: attrStr } = tipTapToHtmlTag(item.nodeName, attrs);
 
       const innerHtml = yXmlFragmentToHtml(item);
 
       // Self-closing tags
-      if (['br', 'hr', 'img', 'horizontalrule', 'hardbreak'].includes(tagName)) {
-        html += `<${tagName}${attrStr} />`;
+      if (['br', 'hr', 'img'].includes(tag)) {
+        html += `<${tag}${attrStr} />`;
       } else {
-        html += `<${tagName}${attrStr}>${innerHtml}</${tagName}>`;
+        html += `<${tag}${attrStr}>${innerHtml}</${tag}>`;
       }
     }
   });
@@ -858,8 +1170,8 @@ function buildYjsFromTokensV2(
       const closeIndex = findClosingTag(tokens, i, tag);
       const childTokens = tokens.slice(i + 1, closeIndex);
 
-      // For leaf blocks (paragraph, heading), extract text with inline marks
-      const leafBlocks = ['paragraph', 'heading', 'codeBlock'];
+      // For leaf blocks (paragraph, heading, listItem), extract text with inline marks
+      const leafBlocks = ['paragraph', 'heading', 'codeBlock', 'listItem'];
       if (leafBlocks.includes(nodeName)) {
         // Extract all text with marks
         const { segments } = extractTextWithMarks(childTokens, 0, childTokens.length);
@@ -869,7 +1181,7 @@ function buildYjsFromTokensV2(
         }
       } else {
         // For container blocks (list, blockquote), recurse
-        buildYjsFromTokensV2(childTokens, elem, nodeName === 'listItem');
+        buildYjsFromTokensV2(childTokens, elem, false);
       }
 
       parent.push([elem]);

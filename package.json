@@ -1,7 +1,7 @@
 {
   "name": "tandem",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Collaborative markdown editor with track changes",
   "author": "IrisGo",
   "type": "module",
@@ -91,6 +91,7 @@
     "@tiptap/suggestion": "^2.27.1",
     "@types/multer": "^2.0.0",
     "cors": "^2.8.5",
+    "diff": "^8.0.2",
     "express": "^5.2.1",
     "html-to-pdfmake": "^2.5.32",
     "lowlight": "^3.3.0",
@@ -110,6 +111,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@types/cors": "^2.8.19",
+    "@types/diff": "^8.0.0",
     "@types/express": "^5.0.6",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
