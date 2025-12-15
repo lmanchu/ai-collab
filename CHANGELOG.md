@@ -2,6 +2,29 @@
 
 All notable changes to Tandem will be documented in this file.
 
+## [1.8.3] - 2025-12-15
+
+### Fixed
+- **Link text display** - URLs in markdown now display as plain text
+  - Links with `<a href="...">` tags were being lost during Y.js sync
+  - Workaround: Skip link mark formatting, treat URLs as plain text
+  - Affects: competitor analysis links, technical reference links, etc.
+
+- **Y.js element ordering** - Fixed markdown-to-Y.js conversion for inline marks
+  - Issue: Y.js requires elements to be added to document tree BEFORE insert/format operations
+  - Solution: Push elements to parent first, then populate XmlText content
+  - Added `populateXmlTextFromSegments()` function for correct operation order
+
+- **Content overwrite protection** - Prevent browser cache from overwriting server content
+  - Added size comparison check in `onStoreDocument`
+  - If new state is <50% of existing state size, block the save
+  - Prevents empty browser cache from overwriting MCP-synced content
+
+### Technical
+- `server/index.ts`: Refactored `buildYjsFromTokensV2` to push elements before populating
+- `server/index.ts`: Added link tag skip in `extractTextWithMarks`
+- `server/index.ts`: Added content protection in `onStoreDocument`
+
 ## [1.8.2] - 2025-12-15
 
 ### Fixed

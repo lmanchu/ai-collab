@@ -1033,12 +1033,23 @@ function extractTextWithMarks(
     } else if (token.type === 'open' && INLINE_MARK_TAGS.has(token.tag || '')) {
       // This is an inline mark - add to current marks and process children
       const markName = getMarkName(token.tag || '');
-      const mark: Record<string, unknown> = { type: markName };
 
-      // Handle link attributes
-      if (token.tag === 'a' && token.attrs?.href) {
-        mark.attrs = { href: token.attrs.href };
+      // WORKAROUND: Skip link marks entirely - just extract text as plain text
+      // Link marks with attributes cause issues with Y.js sync
+      if (token.tag === 'a') {
+        const closeIdx = findClosingTag(tokens, i, token.tag || '');
+        const { segments: childSegments } = extractTextWithMarks(
+          tokens,
+          i + 1,
+          closeIdx,
+          currentMarks // Don't add link mark
+        );
+        segments.push(...childSegments);
+        i = closeIdx + 1;
+        continue;
       }
+
+      const mark: Record<string, unknown> = { type: markName };
 
       const closeIdx = findClosingTag(tokens, i, token.tag || '');
       const { segments: childSegments } = extractTextWithMarks(
@@ -1068,16 +1079,20 @@ function extractTextWithMarks(
 }
 
 // Build XmlText with proper marks from segments
-function buildXmlTextFromSegments(segments: TextSegment[]): Y.XmlText | null {
-  if (segments.length === 0) return null;
-
-  const xmlText = new Y.XmlText();
+// IMPORTANT: The xmlText must be added to the Y.Doc tree BEFORE calling this function
+// Y.js requires elements to be part of a document before insert/format operations work
+function populateXmlTextFromSegments(xmlText: Y.XmlText, segments: TextSegment[]): void {
   let offset = 0;
 
   for (const segment of segments) {
     if (!segment.text) continue;
 
-    xmlText.insert(offset, segment.text);
+    try {
+      xmlText.insert(offset, segment.text);
+    } catch (e) {
+      console.error('Error inserting text:', segment.text.slice(0, 50), e);
+      continue;
+    }
 
     // Apply marks as formatting attributes
     if (segment.marks.length > 0) {
@@ -1095,8 +1110,21 @@ function buildXmlTextFromSegments(segments: TextSegment[]): Y.XmlText | null {
 
     offset += segment.text.length;
   }
+}
 
-  return xmlText;
+// Legacy wrapper for backward compatibility - creates detached XmlText
+// WARNING: This may not work correctly for text with marks - use populateXmlTextFromSegments instead
+function buildXmlTextFromSegments(segments: TextSegment[]): Y.XmlText | null {
+  if (segments.length === 0) return null;
+  const xmlText = new Y.XmlText();
+  // Note: insert/format on detached XmlText may not work correctly
+  // This is kept for simple text without marks
+  for (const segment of segments) {
+    if (segment.text && segment.marks.length === 0) {
+      xmlText.insert(xmlText.length, segment.text);
+    }
+  }
+  return xmlText.length > 0 ? xmlText : null;
 }
 
 // New version that properly handles inline marks
@@ -1179,14 +1207,19 @@ function buildYjsFromTokensV2(
       const closeIndex = findClosingTag(tokens, i, tag);
       const childTokens = tokens.slice(i + 1, closeIndex);
 
+      // IMPORTANT: Push elem to parent FIRST so it's part of Y.Doc tree
+      // Y.js requires elements to be in document before insert/format operations work
+      parent.push([elem]);
+
       // For leaf blocks (paragraph, heading), extract text with inline marks
       const leafBlocks = ['paragraph', 'heading', 'codeBlock'];
       if (leafBlocks.includes(nodeName)) {
         // Extract all text with marks
         const { segments } = extractTextWithMarks(childTokens, 0, childTokens.length);
-        const xmlText = buildXmlTextFromSegments(segments);
-        if (xmlText) {
+        if (segments.length > 0) {
+          const xmlText = new Y.XmlText();
           elem.push([xmlText]);
+          populateXmlTextFromSegments(xmlText, segments);
         }
       } else if (nodeName === 'listItem' || nodeName === 'tableCell' || nodeName === 'tableHeader') {
         // These elements can contain:
@@ -1204,11 +1237,12 @@ function buildYjsFromTokensV2(
         } else {
           // Simple text only - wrap in paragraph (TipTap requires paragraph inside these elements)
           const { segments } = extractTextWithMarks(childTokens, 0, childTokens.length);
-          const xmlText = buildXmlTextFromSegments(segments);
-          if (xmlText) {
+          if (segments.length > 0) {
             const para = new Y.XmlElement('paragraph');
-            para.push([xmlText]);
             elem.push([para]);
+            const xmlText = new Y.XmlText();
+            para.push([xmlText]);
+            populateXmlTextFromSegments(xmlText, segments);
           }
         }
       } else {
@@ -1216,7 +1250,6 @@ function buildYjsFromTokensV2(
         buildYjsFromTokensV2(childTokens, elem, false);
       }
 
-      parent.push([elem]);
       i = closeIndex + 1;
     } else {
       i++;
@@ -1547,6 +1580,15 @@ const hocuspocus = new Hocuspocus({
         } catch {
           // ignore
         }
+      }
+
+      // PROTECTION: Don't save if new state is much smaller than existing state
+      // This prevents browser cache from overwriting server content
+      const existingSize = existingData.yDocState?.length || 0;
+      const newSize = state.length;
+      if (existingSize > 1000 && newSize < existingSize * 0.5) {
+        console.log(`BLOCKED: Refusing to save smaller state for ${documentName} (existing: ${existingSize}, new: ${newSize})`);
+        return;
       }
 
       const trackData: TrackFileData = {
