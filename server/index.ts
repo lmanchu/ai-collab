@@ -11,9 +11,34 @@ import { fileURLToPath } from 'url';
 import { marked } from 'marked';
 import TurndownService from 'turndown';
 import * as Diff from 'diff';
+import { pinyin } from 'pinyin-pro';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Generate document ID with pinyin conversion for Chinese characters
+function generateDocumentId(title: string): string {
+  if (!title) return `doc-${Date.now()}`;
+
+  // Convert Chinese characters to pinyin, keep ASCII as-is
+  const converted = title
+    .split('')
+    .map(char => {
+      // Check if character is Chinese
+      if (/[\u4e00-\u9fff]/.test(char)) {
+        return pinyin(char, { toneType: 'none', type: 'array' })[0] || char;
+      }
+      return char;
+    })
+    .join('');
+
+  // Sanitize: only allow alphanumeric, dash, underscore
+  // Replace spaces and special chars with dash, collapse multiple dashes
+  return converted
+    .replace(/[^a-zA-Z0-9-_]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, ''); // Remove leading/trailing dashes
+}
 
 // Directory to store .track files
 const DATA_DIR = process.env.TANDEM_DATA_DIR || './data';
@@ -207,7 +232,7 @@ app.get('/api/documents', requireAuth, (_req, res) => {
 app.post('/api/documents', requireAuth, (req, res) => {
   try {
     const { title } = req.body;
-    const id = title?.replace(/[^a-zA-Z0-9-_]/g, '_') || `doc-${Date.now()}`;
+    const id = generateDocumentId(title);
     const trackFilePath = getTrackFilePath(id);
 
     if (fs.existsSync(trackFilePath)) {

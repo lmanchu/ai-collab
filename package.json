@@ -1,7 +1,7 @@
 {
   "name": "tandem",
   "private": true,
-  "version": "1.8.3",
+  "version": "1.8.4",
   "description": "Collaborative markdown editor with track changes",
   "author": "IrisGo",
   "type": "module",
@@ -99,6 +99,7 @@
     "marked": "^17.0.1",
     "multer": "^2.0.2",
     "pdfmake": "^0.2.20",
+    "pinyin-pro": "^3.27.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tippy.js": "^6.3.7",

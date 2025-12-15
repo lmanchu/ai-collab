@@ -2,6 +2,20 @@
 
 All notable changes to Tandem will be documented in this file.
 
+## [1.8.4] - 2025-12-15
+
+### Added
+- **Pinyin Document IDs** - Chinese characters in document titles now convert to pinyin for readable ASCII IDs
+  - `測試/產品企劃書` → `ceshi-chanpinqihuashu`
+  - `Hermes/技術架構` → `Hermes-jishujiagou`
+  - Uses `pinyin-pro` library for accurate conversion
+  - IDs remain URL-safe and filesystem-compatible
+  - Original Chinese title preserved in `title` field for display
+
+### Technical
+- `server/index.ts`: Added `generateDocumentId()` function with pinyin conversion
+- Added `pinyin-pro` dependency for Chinese-to-pinyin conversion
+
 ## [1.8.3] - 2025-12-15
 
 ### Fixed
