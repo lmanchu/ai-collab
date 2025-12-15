@@ -2,6 +2,32 @@
 
 All notable changes to Tandem will be documented in this file.
 
+## [1.8.0] - 2025-12-15
+
+### Fixed
+- **Nested list rendering** - Fixed markdown-to-Yjs conversion where nested lists (numbered items with sub-bullets) were losing their content
+  - Issue: `buildYjsFromTokensV2` treated `listItem` as a leaf block, ignoring nested `ul/ol` elements
+  - Solution: Special handling for `listItem` to detect and recurse into block children (`p`, `ul`, `ol`, etc.)
+- **List number/bullet display** - Added CSS styles for `ul` and `ol` elements in the editor
+  - Tailwind CSS resets had removed `list-style-type`, causing list markers to be invisible
+  - Added styles for nested lists with appropriate bullet types (disc → circle → square)
+
+### Technical
+- `server/index.ts` (lines 1182-1204): Refactored `listItem` handling in `buildYjsFromTokensV2`
+- `src/index.css`: Added `.ProseMirror ul`, `.ProseMirror ol`, and nested list styles
+
+## [1.7.0] - 2025-12-14
+
+### Added
+- **Large File Sync** - `tandem_write_from_file` MCP tool for syncing large local files directly
+  - Bypasses message size limits by reading from local filesystem
+  - Ideal for syncing large markdown documents from Obsidian
+
+### Improved
+- **Track Changes Workflow** - `tandem_suggest_changes` for bidirectional sync
+  - Submit local changes as Track Changes suggestions
+  - Changes appear for human review before merging
+
 ## [1.6.0] - 2025-12-13
 
 ### Added

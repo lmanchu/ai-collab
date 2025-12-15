@@ -1170,14 +1170,37 @@ function buildYjsFromTokensV2(
       const closeIndex = findClosingTag(tokens, i, tag);
       const childTokens = tokens.slice(i + 1, closeIndex);
 
-      // For leaf blocks (paragraph, heading, listItem), extract text with inline marks
-      const leafBlocks = ['paragraph', 'heading', 'codeBlock', 'listItem'];
+      // For leaf blocks (paragraph, heading), extract text with inline marks
+      const leafBlocks = ['paragraph', 'heading', 'codeBlock'];
       if (leafBlocks.includes(nodeName)) {
         // Extract all text with marks
         const { segments } = extractTextWithMarks(childTokens, 0, childTokens.length);
         const xmlText = buildXmlTextFromSegments(segments);
         if (xmlText) {
           elem.push([xmlText]);
+        }
+      } else if (nodeName === 'listItem') {
+        // ListItem can contain:
+        // 1. Simple text: <li>text</li> -> listItem > paragraph > text
+        // 2. Paragraph + nested list: <li><p>text</p><ul>...</ul></li>
+        //
+        // Check if children contain block elements (p, ul, ol, etc.)
+        const hasBlockChildren = childTokens.some(
+          t => t.type === 'open' && ['p', 'ul', 'ol', 'blockquote', 'pre', 'table', 'div'].includes(t.tag || '')
+        );
+
+        if (hasBlockChildren) {
+          // Has block children - recurse to process them as proper blocks
+          buildYjsFromTokensV2(childTokens, elem, false);
+        } else {
+          // Simple text only - wrap in paragraph (TipTap requires listItem > paragraph > text)
+          const { segments } = extractTextWithMarks(childTokens, 0, childTokens.length);
+          const xmlText = buildXmlTextFromSegments(segments);
+          if (xmlText) {
+            const para = new Y.XmlElement('paragraph');
+            para.push([xmlText]);
+            elem.push([para]);
+          }
         }
       } else {
         // For container blocks (list, blockquote), recurse

@@ -16,6 +16,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { readFileSync } from 'fs';
 
 // Configuration
 const TANDEM_API_URL = process.env.TANDEM_API_URL || 'https://tandem.irisgo.xyz';
@@ -36,7 +37,7 @@ function getAuthHeaders(): Record<string, string> {
 const server = new Server(
   {
     name: 'tandem-mcp',
-    version: '1.7.0',
+    version: '1.8.0',
   },
   {
     capabilities: {
@@ -202,6 +203,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ['documentId'],
+        },
+      },
+      {
+        name: 'tandem_write_from_file',
+        description: 'Write a large local file to a Tandem document. Reads content directly from local filesystem, bypassing message size limits. Perfect for syncing large markdown files.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            documentId: {
+              type: 'string',
+              description: 'The ID of the document to write to',
+            },
+            filePath: {
+              type: 'string',
+              description: 'Absolute path to the local file to read and sync (e.g., /Users/lman/PKM-Vault/doc.md)',
+            },
+          },
+          required: ['documentId', 'filePath'],
         },
       },
     ],
@@ -572,6 +591,47 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: `Track Changes for ${documentId}:\nTotal: ${result.changesCount} pending changes\n\n${JSON.stringify(result.changes, null, 2)}`,
+            },
+          ],
+        };
+      }
+
+      case 'tandem_write_from_file': {
+        const { documentId, filePath } = args as { documentId: string; filePath: string };
+
+        // Read content from local file
+        let content: string;
+        try {
+          content = readFileSync(filePath, 'utf-8');
+        } catch (err) {
+          throw new Error(`Failed to read file: ${filePath} - ${err}`);
+        }
+
+        const fileSize = Buffer.byteLength(content, 'utf-8');
+        const fileSizeKB = (fileSize / 1024).toFixed(1);
+
+        // Write to Tandem
+        const response = await fetch(`${TANDEM_API_URL}/api/documents/${encodeURIComponent(documentId)}/content`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({ content }),
+        });
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error(`Document not found: ${documentId}`);
+          }
+          throw new Error(`Failed to write document: ${response.status}`);
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Successfully synced file to Tandem:\n- Document: ${documentId}\n- Source: ${filePath}\n- Size: ${fileSizeKB} KB`,
             },
           ],
         };
