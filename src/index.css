@@ -90,19 +90,27 @@ body {
   position: relative;
 }
 
-.dark .ProseMirror th,
-.dark .ProseMirror td {
-  border-color: #52525b;
-}
-
 .ProseMirror th {
   background-color: #f3f4f6;
   font-weight: 600;
   text-align: left;
 }
 
-.dark .ProseMirror th {
-  background-color: #3f3f46;
+@media (prefers-color-scheme: dark) {
+  .ProseMirror th,
+  .ProseMirror td {
+    border-color: #52525b;
+  }
+
+  .ProseMirror th {
+    background-color: #3f3f46 !important;
+    color: #e5e7eb !important;
+  }
+
+  .ProseMirror th > *,
+  .ProseMirror th p {
+    color: #e5e7eb !important;
+  }
 }
 
 .ProseMirror th > *,
