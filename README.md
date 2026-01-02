@@ -2,7 +2,9 @@
 
 **AI Native Google Docs** — Real-time collaborative editing where every user brings their own AI agent.
 
-**Live Demo:** https://tandem.irisgo.xyz
+**🎮 Try the Demo:** https://tandem-demo.irisgo.xyz
+
+![Tandem Demo](https://github.com/lmanchu/tandem/raw/main/docs/demo-track-changes.gif)
 
 ---
 
@@ -55,12 +57,24 @@ Tandem's MCP (Model Context Protocol) server allows AI tools to directly interac
 ### Quick Setup (Claude Code)
 
 ```bash
-# Add Tandem MCP to Claude Code
+# Add Tandem MCP to Claude Code (using public demo)
 claude mcp add tandem \
   -s user \
-  -e TANDEM_PASSWORD=your_password \
   -- npx -y @tandem-hq/mcp-server-tandem \
-    --base-url https://tandem.irisgo.xyz
+    --base-url https://tandem-demo.irisgo.xyz
+```
+
+Or add to your `~/.claude.json` manually:
+
+```json
+{
+  "mcpServers": {
+    "tandem": {
+      "command": "npx",
+      "args": ["-y", "@tandem-hq/mcp-server-tandem", "--base-url", "https://tandem-demo.irisgo.xyz"]
+    }
+  }
+}
 ```
 
 ### Available Tools
