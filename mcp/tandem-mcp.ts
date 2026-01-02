@@ -37,7 +37,7 @@ function getAuthHeaders(): Record<string, string> {
 const server = new Server(
   {
     name: 'tandem-mcp',
-    version: '1.8.0',
+    version: '1.9.0',
   },
   {
     capabilities: {
@@ -221,6 +221,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ['documentId', 'filePath'],
+        },
+      },
+      {
+        name: 'tandem_search',
+        description: 'Search for text across all Tandem documents. Returns matching documents with context snippets showing where the search term appears.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Search query (minimum 2 characters). Searches document content.',
+            },
+          },
+          required: ['query'],
         },
       },
     ],
@@ -632,6 +646,72 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: `Successfully synced file to Tandem:\n- Document: ${documentId}\n- Source: ${filePath}\n- Size: ${fileSizeKB} KB`,
+            },
+          ],
+        };
+      }
+
+      case 'tandem_search': {
+        const { query } = args as { query: string };
+
+        if (!query || query.trim().length < 2) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Search query must be at least 2 characters',
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const response = await fetch(
+          `${TANDEM_API_URL}/api/search?q=${encodeURIComponent(query.trim())}`,
+          {
+            headers: getAuthHeaders(),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Search failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const results = data.results as Array<{
+          documentId: string;
+          documentTitle: string;
+          matches: Array<{
+            text: string;
+            context: string;
+            position: number;
+          }>;
+        }>;
+
+        if (results.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `No results found for: "${query}"`,
+              },
+            ],
+          };
+        }
+
+        // Format results for readability
+        const formattedResults = results.map((doc) => {
+          const matchList = doc.matches
+            .map((m) => `    • ${m.context}`)
+            .join('\n');
+          return `📄 ${doc.documentTitle} (${doc.matches.length} match${doc.matches.length > 1 ? 'es' : ''})\n${matchList}`;
+        }).join('\n\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Found ${results.length} document${results.length > 1 ? 's' : ''} matching "${query}":\n\n${formattedResults}`,
             },
           ],
         };

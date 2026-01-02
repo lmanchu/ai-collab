@@ -1,11 +1,11 @@
 {
-  "name": "tandem-mcp",
-  "version": "1.8.0",
+  "name": "@tandem-hq/mcp-server-tandem",
+  "version": "1.9.0",
   "description": "MCP Server for Tandem document operations",
   "type": "module",
   "main": "dist/tandem-mcp.js",
   "bin": {
-    "tandem-mcp": "./dist/tandem-mcp.js"
+    "mcp-server-tandem": "./dist/tandem-mcp.js"
   },
   "scripts": {
     "build": "tsc",

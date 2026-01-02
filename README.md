@@ -86,6 +86,7 @@ Or add to your `~/.claude.json` manually:
 | `tandem_write` | Write/update document |
 | `tandem_create` | Create new document |
 | `tandem_delete` | Delete document |
+| `tandem_search` | Search across all documents |
 | `tandem_sync_project` | Sync entire folder to Tandem |
 | `tandem_write_from_file` | Sync large local file directly |
 | `tandem_suggest_changes` | Submit changes as Track Changes |

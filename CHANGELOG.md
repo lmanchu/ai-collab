@@ -2,6 +2,23 @@
 
 All notable changes to Tandem will be documented in this file.
 
+## [1.9.0] - 2026-01-02
+
+### Added
+- **tandem_search MCP tool** - Search across all documents with context snippets
+  - Returns matching documents with highlighted context around search terms
+  - Limits to 5 matches per document, 20 total results
+  - Minimum 2-character query required
+
+### Changed
+- **npm package renamed** - `tandem-mcp` → `@tandem-hq/mcp-server-tandem`
+  - Published to npm under `@tandem-hq` organization
+  - Install: `npx -y @tandem-hq/mcp-server-tandem`
+
+### Technical
+- `mcp/tandem-mcp.ts`: Added `tandem_search` tool handler calling `/api/search` endpoint
+- `mcp/package.json`: Renamed package and updated bin command
+
 ## [1.8.4] - 2025-12-15
 
 ### Added
